@@ -164,8 +164,8 @@ const handleSubscriptionDeleted = async (subscription) => {
   const user = await User.findOne({ stripeCustomerId });
 
   if (user) {
+    user.plan = "free";
     console.log(`Subscription deleted for user: ${user.email}`);
-    // Handle user plan update or deletion logic
   }
 };
 
