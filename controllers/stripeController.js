@@ -162,10 +162,10 @@ const handleCheckoutSessionCompleted = async (checkoutSession) => {
 const handleSubscriptionDeleted = async (subscription) => {
   const stripeCustomerId = subscription.customer;
   const user = await User.findOne({ stripeCustomerId });
-  console.log(user);
 
   if (user) {
     user.plan = "free";
+    await user.save();
     console.log(`Subscription deleted for user: ${user.email}`);
   }
 };
