@@ -5,6 +5,7 @@ const {
   updateUserInfo,
   updateUserPlan,
   updateUserRole,
+  deleteUser,
 } = require("../controllers/userController");
 const verifyRole = require("../middleware/auth");
 
@@ -19,5 +20,6 @@ router.put(
 );
 router.patch("/update/:id", updateUserPlan);
 router.patch("/promote/:id", verifyRole(["admin"]), updateUserRole);
+router.delete("/delete/:id", verifyRole(["admin"]), deleteUser);
 
 module.exports = router;

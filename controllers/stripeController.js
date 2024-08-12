@@ -8,7 +8,7 @@ const {
   generateUniqueUsername,
 } = require("../utils/helpers");
 
-const STRIPE_REDIRECT_BASE_URL = process.env.BASE_URL;
+const STRIPE_REDIRECT_BASE_URL = process.env.STRIPE_REDIRECT_BASE_URL;
 
 const checkout = async (req, res) => {
   const { planId, stripeCustomerId } = req.body;
@@ -175,7 +175,7 @@ const generateCustomerPortal = async (req, res) => {
   try {
     const session = await stripe.billingPortal.sessions.create({
       customer: stripeCustomerId,
-      return_url: `${process.env.BASE_URL}/dashboard`,
+      return_url: STRIPE_REDIRECT_BASE_URL,
     });
 
     res.status(200).json({ url: session.url });
