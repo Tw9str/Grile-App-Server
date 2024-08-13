@@ -3,11 +3,9 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
-// Register User
 const register = async (req, res) => {
   const { username, email, password } = req.body;
 
-  // Define validation rules
   const validationRules = [
     {
       field: "username",
@@ -69,16 +67,13 @@ const register = async (req, res) => {
     },
   ];
 
-  // Aggregate all validation errors
   const errors = validationRules.flatMap(({ checks }) =>
     checks.filter(({ condition }) => condition).map(({ message }) => message)
   );
 
-  // Return errors if any
   if (errors.length) return res.status(400).json({ message: errors });
 
   try {
-    // **Step 1: Check for Existing Username or Email**
     const existingUser = await User.findOne({
       $or: [{ username: username }, { email: email }],
     });
@@ -94,10 +89,8 @@ const register = async (req, res) => {
       return res.status(400).json({ message: existingFields });
     }
 
-    // **Step 2: Hash the Password**
     const hashedPassword = await bcrypt.hash(password, await bcrypt.genSalt());
 
-    // **Step 3: Save the User**
     const user = new User({
       username,
       email,
@@ -105,7 +98,6 @@ const register = async (req, res) => {
     });
     const savedUser = await user.save();
 
-    // **Step 4: Create Stripe Customer**
     const customer = await stripe.customers.create({
       email,
       metadata: {
@@ -114,7 +106,6 @@ const register = async (req, res) => {
       },
     });
 
-    // **Step 5: Update User with Stripe Customer ID**
     savedUser.stripeCustomerId = customer.id;
     await savedUser.save();
 
@@ -144,7 +135,6 @@ const register = async (req, res) => {
   }
 };
 
-// Login User
 const login = async (req, res) => {
   try {
     const { username, password } = req.body;

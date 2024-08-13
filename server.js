@@ -14,6 +14,7 @@ const reviewRoutes = require("./routes/reviewRoutes");
 const postRoutes = require("./routes/postRoutes");
 const sessionRoutes = require("./routes/sessionRoutes");
 const stripeRoutes = require("./routes/stripeRoutes");
+const verifyToken = require("./middleware/verifyToken");
 
 // Initialize Express app
 const app = express();
@@ -38,6 +39,7 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/posts", postRoutes);
 app.use("/api/sessions", sessionRoutes);
 app.use("/api/stripe", stripeRoutes);
+app.post("/api/updateToken", verifyToken);
 
 // Error Handler Middleware
 app.use(errorHandler);
