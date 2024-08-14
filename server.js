@@ -14,7 +14,9 @@ const reviewRoutes = require("./routes/reviewRoutes");
 const postRoutes = require("./routes/postRoutes");
 const sessionRoutes = require("./routes/sessionRoutes");
 const stripeRoutes = require("./routes/stripeRoutes");
-const verifyToken = require("./middleware/verifyToken");
+const adminRoutes = require("./routes/adminRoutes");
+const teacherRoutes = require("./routes/teacherRoutes");
+const verifyRole = require("./middleware/auth");
 
 // Initialize Express app
 const app = express();
@@ -29,17 +31,32 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.static("public"));
 
-// // Routes
-app.use("/api/exams", examRoutes);
-app.use("/api/users", userRoutes);
+// Routes
+app.use("/api/exams", verifyRole(["student", "teacher", "admin"]), examRoutes);
+app.use("/api/users", verifyRole(["student", "teacher", "admin"]), userRoutes);
 app.use("/api/auth", authRoutes);
-app.use("/api/categories", categoryRoutes);
+app.use(
+  "/api/categories",
+  verifyRole(["student", "teacher", "admin"]),
+  categoryRoutes
+);
 app.use("/api/plans", planRoutes);
-app.use("/api/reviews", reviewRoutes);
+app.use(
+  "/api/reviews",
+  verifyRole(["student", "teacher", "admin"]),
+  reviewRoutes
+);
 app.use("/api/posts", postRoutes);
-app.use("/api/sessions", sessionRoutes);
+app.use(
+  "/api/sessions",
+  verifyRole(["student", "teacher", "admin"]),
+  sessionRoutes
+);
 app.use("/api/stripe", stripeRoutes);
-app.post("/api/updateToken", verifyToken);
+
+// Admin / Teacher Routes
+app.use("/api/manage", verifyRole(["admin"]), adminRoutes);
+app.use("/api/create", verifyRole(["admin", "teacher"]), teacherRoutes);
 
 // Error Handler Middleware
 app.use(errorHandler);
