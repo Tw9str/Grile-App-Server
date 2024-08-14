@@ -41,11 +41,7 @@ app.use(
   categoryRoutes
 );
 app.use("/api/plans", planRoutes);
-app.use(
-  "/api/reviews",
-  verifyRole(["student", "teacher", "admin"]),
-  reviewRoutes
-);
+app.use("/api/reviews", reviewRoutes);
 app.use("/api/posts", postRoutes);
 app.use(
   "/api/sessions",
