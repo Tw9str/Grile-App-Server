@@ -9,7 +9,7 @@ const createPost = async (req, res) => {
       image: req.file ? req.file.filename : "",
       content: description,
       author: req.user.id,
-      slug: title.toLowerCase().replace(/ /g, "-"),
+      slug: title.toLowerCase().trim().replace(/ /g, "-"),
       tag,
     });
 
@@ -33,10 +33,13 @@ const getPosts = async (req, res) => {
 };
 
 const getPost = async (req, res) => {
-  const { id } = req.params;
+  const { slug } = req.params;
 
   try {
-    const post = await Post.findById(id).populate("author", "username");
+    const post = await Post.findOne({ slug }).populate(
+      "author",
+      "username role"
+    );
     if (!post) {
       return res.status(404).json({ error: "Post not found" });
     }
