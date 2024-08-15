@@ -111,11 +111,7 @@ const deleteCategory = async (req, res) => {
       for (const question of questions) {
         // If question has an image, delete it from the filesystem
         if (question.image) {
-          const imagePath = join(
-            __dirname,
-            "../public/questions",
-            question.image
-          );
+          const imagePath = join(__dirname, "../public", question.image);
           deleteFile(imagePath, (err) => {
             if (err) console.error(`Failed to delete image ${imagePath}:`, err);
           });
