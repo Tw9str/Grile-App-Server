@@ -8,7 +8,7 @@ const router = express.Router();
 
 // Exams
 router.post("/exam", upload.any(), addExam);
-router.put("/exam/edit/:id", upload.any(), updateExam);
+router.patch("/exam/edit/:id", upload.any(), updateExam);
 
 router.post("/category", addCategory);
 

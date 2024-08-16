@@ -23,6 +23,21 @@ const getUser = async (req, res) => {
   }
 };
 
+const getPremiumUsers = async (req, res) => {
+  try {
+    const premiumUserCount = await User.countDocuments({ plan: "premium" });
+
+    if (premiumUserCount === 0) {
+      return res.status(404).json({ message: "No premium users found" });
+    }
+
+    res.json({ count: premiumUserCount });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 const updateUserInfo = async (req, res) => {
   const { firstname, lastname, username, currentPassword, newPassword } =
     req.body;
@@ -219,6 +234,7 @@ const deleteUser = async (req, res) => {
 module.exports = {
   getUsers,
   getUser,
+  getPremiumUsers,
   updateUserInfo,
   updateUserRole,
   updateUserPlan,
