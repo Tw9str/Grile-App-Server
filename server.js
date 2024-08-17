@@ -16,7 +16,9 @@ const sessionRoutes = require("./routes/sessionRoutes");
 const stripeRoutes = require("./routes/stripeRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const teacherRoutes = require("./routes/teacherRoutes");
+const contactRoutes = require("./routes/contactRoutes");
 const verifyRole = require("./middleware/auth");
+const { sendEmail } = require("./utils/email");
 
 // Initialize Express app
 const app = express();
@@ -32,6 +34,7 @@ app.use(express.json());
 app.use(express.static("public"));
 
 // Routes
+app.use("/api", contactRoutes);
 app.use("/api/exams", verifyRole(["student", "teacher", "admin"]), examRoutes);
 app.use("/api/users", verifyRole(["student", "teacher", "admin"]), userRoutes);
 app.use("/api/auth", authRoutes);

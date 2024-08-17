@@ -66,6 +66,12 @@ const userSchema = new Schema(
       message: (props) =>
         `${props.value} is not a valid Stripe customer ID! It should include "cus_".`,
     },
+    resetPasswordToken: {
+      type: String,
+    },
+    resetPasswordExpires: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );

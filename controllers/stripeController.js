@@ -43,6 +43,9 @@ const checkout = async (req, res) => {
       mode: "subscription",
       success_url: `${STRIPE_REDIRECT_BASE_URL}`,
       cancel_url: `${STRIPE_REDIRECT_BASE_URL}`,
+      metadata: {
+        planId: plan._id.toString(),
+      },
     };
 
     if (stripeCustomerId) {
@@ -91,6 +94,17 @@ const webhook = async (request, response) => {
 
 const handleCheckoutSessionCompleted = async (checkoutSession) => {
   try {
+    const planId = checkoutSession.metadata.planId;
+
+    const plan = await Plan.findById(planId);
+
+    if (!plan) {
+      console.error("Plan not found");
+      return;
+    }
+
+    const planName = plan.name.toLowerCase();
+
     let user = await User.findOne({
       stripeCustomerId: checkoutSession.customer,
     });
@@ -100,18 +114,12 @@ const handleCheckoutSessionCompleted = async (checkoutSession) => {
       user = await User.findOne({ email: customerEmail });
 
       if (user) {
-        console.log("User found by email! Updating plan to premium...");
-        user.plan = "premium";
+        console.log(`User found by email! Updating plan to ${planName}...`);
+        user.plan = planName;
         user.stripeCustomerId = checkoutSession.customer;
         await user.save();
 
-        await sendEmail(
-          user.email,
-          "Your Plan Has Been Updated",
-          `<p>Hello <strong>${user.username}</strong>,</p>
-                  <p>Your plan has been successfully updated to <strong>premium</strong>.</p>
-                  <p>Best regards,<br>grileinfo.ro</p>`
-        );
+        await sendPlanUpdateEmail(user.username, user.email, planName);
       } else {
         console.log("User not found by email! Creating a new user...");
         const randomPassword = generateRandomPassword();
@@ -122,41 +130,217 @@ const handleCheckoutSessionCompleted = async (checkoutSession) => {
           username,
           email: customerEmail,
           password: hashedPassword,
-          plan: "premium",
+          plan: planName,
           stripeCustomerId: checkoutSession.customer,
         });
 
         await newUser.save();
         console.log("New user created based on Stripe checkout session.");
-
-        await sendEmail(
+        await sendNewAccountEmail(
+          newUser.username,
           newUser.email,
-          "Your New Account",
-          `<p>Hello,</p>
-                     <p>Your account has been created with the username: <strong>${newUser.username}</strong>.</p>
-                     <p>Your password is: <strong>${randomPassword}</strong></p>
-                     <p>Please change your password after logging in for the first time.</p>
-                     <p>Best regards,<br>grileinfo.ro</p>`
+          randomPassword
         );
       }
     } else if (user) {
       console.log(
-        "User found by Stripe customer ID! Updating plan to premium..."
+        `User found by Stripe customer ID! Updating plan to ${planName}...`
       );
-      user.plan = "premium";
+      user.plan = planName;
+      console.log(planName);
       await user.save();
 
-      await sendEmail(
-        user.email,
-        "Your Plan Has Been Updated",
-        `<p>Hello <strong>${user.username}</strong>,</p>
-                <p>Your plan has been successfully updated to <strong>premium</strong>.</p>
-                <p>Best regards,<br>Your Company Name</p>`
-      );
+      await sendPlanUpdateEmail(user.username, user.email, planName);
     }
   } catch (err) {
-    console.log("Error handling checkout session completed event:", err);
+    console.error("Error handling checkout session completed event:", err);
   }
+};
+
+// Refactored email functions with original styles and messages
+const sendPlanUpdateEmail = async (username, email, plan) => {
+  const subject = "Planul dvs. a fost actualizat";
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html lang="ro">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Planul dvs. a fost actualizat</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                background-color: #f4f4f4;
+                margin: 0;
+                padding: 0;
+            }
+
+            .container {
+                max-width: 600px;
+                margin: 20px auto;
+                background-color: #ffffff;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            }
+
+            h1 {
+                color: #333333;
+                font-size: 24px;
+                text-align: center;
+                margin-bottom: 20px;
+            }
+
+            p {
+                color: #666666;
+                line-height: 1.6;
+                margin: 0 0 10px;
+            }
+
+            .plan-details {
+                background-color: #dcfce7;
+                padding: 10px;
+                border-left: 4px solid #16a34a;
+                margin: 20px 0;
+            }
+
+            .footer {
+                text-align: center;
+                color: #999999;
+                font-size: 14px;
+                margin-top: 20px;
+            }
+
+            .footer a {
+                color: #007bff;
+                text-decoration: none;
+            }
+        </style>
+    </head>
+
+    <body>
+        <div class="container">
+            <h1>Planul a fost actualizat cu succes</h1>
+            <p>Bună <strong>${username}</strong>,</p>
+            <p>Suntem încântați să vă informăm că planul dvs. a fost actualizat cu succes la <strong>${plan}</strong>.</p>
+            <div class="plan-details">
+                <p>Noul dvs. plan vine cu funcții și beneficii îmbunătățite, concepute pentru a vă oferi cea mai bună experiență posibilă.</p>
+            </div>
+            <p>Dacă aveți întrebări sau aveți nevoie de asistență suplimentară, nu ezitați să <a href="mailto:contact@grileinfo.ro">ne contactați</a>.</p>
+            <p>Cu stimă,<br>Echipa grileinfo.ro</p>
+            <div class="footer">
+                <p>&copy; 2024 grileinfo.ro. Toate drepturile rezervate.</p>
+            </div>
+        </div>
+    </body>
+
+    </html>
+    `;
+
+  await sendEmail(email, subject, htmlContent)
+    .then((info) => {
+      console.log("Email sent successfully:", info.response);
+    })
+    .catch((error) => {
+      console.error("Failed to send email after retries:", error);
+    });
+};
+
+const sendNewAccountEmail = async (username, email, password) => {
+  const subject = "Contul dvs. nou";
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html lang="ro">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Contul dvs. nou</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                background-color: #f4f4f4;
+                margin: 0;
+                padding: 0;
+            }
+
+            .container {
+                max-width: 600px;
+                margin: 20px auto;
+                background-color: #ffffff;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            }
+
+            h1 {
+                color: #333333;
+                font-size: 24px;
+                text-align: center;
+                margin-bottom: 20px;
+            }
+
+            p {
+                color: #666666;
+                line-height: 1.6;
+                margin: 0 0 10px;
+            }
+
+            .account-details {
+                background-color: #dcfce7;
+                padding: 10px;
+                border-left: 4px solid #16a34a;
+                margin: 20px 0;
+            }
+
+            .account-details p {
+                margin: 5px 0;
+                font-weight: bold;
+            }
+
+            .footer {
+                text-align: center;
+                color: #999999;
+                font-size: 14px;
+                margin-top: 20px;
+            }
+
+            .footer a {
+                color: #007bff;
+                text-decoration: none;
+            }
+        </style>
+    </head>
+
+    <body>
+        <div class="container">
+            <h1>Bun venit la grileinfo.ro!</h1>
+            <p>Bună,</p>
+            <p>Contul dvs. nou a fost creat cu succes. Mai jos sunt detaliile contului:</p>
+            <div class="account-details">
+                <p>Utilizator: <strong>${username}</strong></p>
+                <p>Parolă: <strong>${password}</strong></p>
+            </div>
+            <p>Vă rugăm să vă asigurați că schimbați parola după prima autentificare pentru a vă menține contul în siguranță.</p>
+            <p>Dacă aveți întrebări sau aveți nevoie de asistență, nu ezitați să <a href="mailto:contact@grileinfo.ro">ne contactați</a>.</p>
+            <p>Cu stimă,<br>Echipa grileinfo.ro</p>
+            <div class="footer">
+                <p>&copy; 2024 grileinfo.ro. Toate drepturile rezervate.</p>
+            </div>
+        </div>
+    </body>
+
+    </html>
+    `;
+
+  await sendEmail(email, subject, htmlContent)
+    .then((info) => {
+      console.log("Email sent successfully:", info.response);
+    })
+    .catch((error) => {
+      console.error("Failed to send email after retries:", error);
+    });
 };
 
 const handleSubscriptionDeleted = async (subscription) => {
