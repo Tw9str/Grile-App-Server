@@ -248,7 +248,7 @@ const requestResetPassword = async (req, res) => {
                             <div class="container">
                                 <h1>Resetare Parolă</h1>
                                 <p>Te rugăm să faci clic pe link-ul de mai jos sau să-l introduci în browser pentru a finaliza procesul de resetare a parolei:</p>
-                                <a href="${req.headers.referer}/reset-password?key=${token}" class="reset-link">Resetează Parola</a>
+                                <a href="${req.headers.origin}/reset-password?key=${token}" class="reset-link">Resetează Parola</a>
                                 <p>Dacă nu ai solicitat resetarea parolei, te rugăm să ignori acest email și parola ta va rămâne neschimbată.</p>
                                 <div class="footer">
                                     <p>&copy; 2024 grileinfo.ro. Toate drepturile rezervate.</p>
