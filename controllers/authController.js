@@ -160,10 +160,7 @@ const login = async (req, res) => {
         role: user.role,
         stripeCustomerId: user.stripeCustomerId,
       },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: "3d",
-      }
+      process.env.JWT_SECRET
     );
     res
       .status(200)
