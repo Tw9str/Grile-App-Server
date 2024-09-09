@@ -26,6 +26,8 @@ const getExams = async (req, res) => {
 const addExam = async (req, res) => {
   const { title, user, category, duration } = req.body;
 
+  const uploadedFileNames = [];
+
   let questionData;
   try {
     questionData = JSON.parse(req.body.questionsData);
@@ -50,8 +52,10 @@ const addExam = async (req, res) => {
             points: parseFloat(question.points),
             explanation: question.explanation,
           });
+          uploadedFileNames.push(req.files[index]?.filename);
           return await newQuestion.save();
         } catch (error) {
+          await cleanupUploadedFiles(uploadedFileNames);
           console.error(
             `Error saving question at index ${index}: ${error.message}`
           );
@@ -72,6 +76,7 @@ const addExam = async (req, res) => {
       .status(201)
       .json({ newExam, message: "Exam will be availble in exams tab!" });
   } catch (error) {
+    await cleanupUploadedFiles(uploadedFileNames);
     res.status(400).json({ error: error.message });
   }
 };
@@ -117,11 +122,21 @@ const getExamCategory = async (req, res) => {
   }
 };
 
+const deleteFile = promisify(fs.unlink);
+
 const updateExam = async (req, res) => {
-  const { title, category, questionsData, plan, isVisible } = req.body;
+  const {
+    title,
+    category,
+    questionsData,
+    deletedQuestionIds,
+    plan,
+    isVisible,
+  } = req.body;
 
   // Initialize the update data object
   const updateData = {};
+  const uploadedFileNames = []; // To track uploaded files
 
   if (title) updateData.title = title;
   if (category) updateData.category = category;
@@ -146,22 +161,52 @@ const updateExam = async (req, res) => {
       const questions = await Promise.all(
         questionData.map(async (question, index) => {
           try {
-            // Determine the image to use
-            let imageFileName;
-            if (req.files && req.files[index]) {
-              imageFileName = req.files[index].filename; // New image uploaded
+            let imageFileName = null;
+
+            // Check if the question image is null and there's a corresponding uploaded image
+            if (question.image === null) {
+              const uploadedFile = req.files.find(
+                (file) => file.fieldname === `questionImage${index}`
+              );
+              if (uploadedFile) {
+                imageFileName = uploadedFile.filename; // Assign the uploaded image filename
+                uploadedFileNames.push(imageFileName); // Track uploaded file
+                console.log(
+                  `New image uploaded for question at index ${index}: ${imageFileName}`
+                );
+              }
             } else if (question.image) {
-              imageFileName = question.image; // Retain the existing image
-            } else {
-              imageFileName = ""; // No image provided, handle as needed
+              // Use the existing image provided in the question
+              imageFileName = question.image;
             }
 
-            if (question._id) {
-              // Update existing question
+            // Check if the question already exists
+            if (question.id) {
+              const existingQuestion = await Question.findById(question.id);
+
+              // If the image has changed, delete the old one
+              if (
+                existingQuestion.image &&
+                existingQuestion.image !== imageFileName
+              ) {
+                const oldImagePath = join(
+                  __dirname,
+                  "../public",
+                  existingQuestion.image
+                );
+                try {
+                  await deleteFile(oldImagePath);
+                  console.log(`Deleted old image: ${oldImagePath}`);
+                } catch (err) {
+                  console.error(`Failed to delete image ${oldImagePath}:`, err);
+                }
+              }
+
+              // Update the existing question
               return await Question.findByIdAndUpdate(
-                question._id,
+                question.id,
                 {
-                  image: imageFileName,
+                  image: imageFileName, // Assign the resolved image
                   answers: question.answers,
                   correctAnswers: question.correctAnswers,
                   points: parseFloat(question.points),
@@ -172,12 +217,15 @@ const updateExam = async (req, res) => {
             } else {
               // Create new question
               const newQuestion = new Question({
-                image: imageFileName,
+                image: imageFileName, // Use the resolved image
                 answers: question.answers,
                 correctAnswers: question.correctAnswers,
                 points: parseFloat(question.points),
                 explanation: question.explanation,
               });
+
+              // Validate before saving
+              await newQuestion.validate(); // Validate before saving
               return await newQuestion.save();
             }
           } catch (error) {
@@ -192,6 +240,43 @@ const updateExam = async (req, res) => {
       updateData.questions = questions.map((q) => q._id);
     } catch (error) {
       console.error(error);
+      // Cleanup uploaded files if any error occurs
+      await cleanupUploadedFiles(uploadedFileNames);
+      return res
+        .status(500)
+        .json({ message: "Server Error", error: error.message });
+    }
+  }
+
+  if (deletedQuestionIds) {
+    try {
+      const idsToDelete = JSON.parse(deletedQuestionIds);
+      await Promise.all(
+        idsToDelete.map(async (id) => {
+          const questionToDelete = await Question.findById(id);
+          if (questionToDelete) {
+            // Delete associated image if it exists
+            if (questionToDelete.image) {
+              const oldImagePath = join(
+                __dirname,
+                "../public",
+                questionToDelete.image
+              );
+              try {
+                await deleteFile(oldImagePath);
+                console.log(`Deleted associated image: ${oldImagePath}`);
+              } catch (err) {
+                console.error(`Failed to delete image ${oldImagePath}:`, err);
+              }
+            }
+            // Delete the question from the database
+            await Question.findByIdAndDelete(id);
+            console.log(`Deleted question with ID: ${id}`);
+          }
+        })
+      );
+    } catch (error) {
+      console.error(`Error deleting questions: ${error.message}`);
       return res
         .status(500)
         .json({ message: "Server Error", error: error.message });
@@ -212,11 +297,23 @@ const updateExam = async (req, res) => {
     res.json({ message: "Exam updated successfully", exam: updatedExam });
   } catch (error) {
     console.error(error);
+    await cleanupUploadedFiles(uploadedFileNames); // Cleanup on error
     res.status(500).json({ message: "Server Error", error: error.message });
   }
 };
 
-const deleteFile = promisify(fs.unlink);
+// Function to delete uploaded files
+const cleanupUploadedFiles = async (fileNames) => {
+  for (const fileName of fileNames) {
+    const filePath = join(__dirname, "../public", fileName);
+    try {
+      await deleteFile(filePath);
+      console.log(`Deleted uploaded file: ${filePath}`);
+    } catch (err) {
+      console.error(`Failed to delete uploaded file ${filePath}:`, err);
+    }
+  }
+};
 
 const deleteExam = async (req, res) => {
   try {
@@ -230,11 +327,7 @@ const deleteExam = async (req, res) => {
     // Find and delete images associated with questions
     for (const question of exam.questions) {
       if (question.image) {
-        const imagePath = join(
-          __dirname,
-          "../public/questions",
-          question.image
-        );
+        const imagePath = join(__dirname, "../public", question.image);
         try {
           await deleteFile(imagePath);
         } catch (err) {
